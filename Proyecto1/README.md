@@ -313,5 +313,94 @@ Para comprobar que las interfaces fueron configuradas correctamente como enlaces
 ### 4.  **Protocolos VTP y STP**
 
 
+### 4.1 Protocolo VTP
+
+El VLAN Trunking Protocol (VTP) se utilizó para facilitar la propagación y administración de las VLAN dentro de la infraestructura de switches.
+
+Se definió a MS1 como servidor VTP, encargado de mantener la información de las VLAN, mientras que los demás switches fueron configurados como clientes VTP.
+
+Se utilizó VTP versión 2, con un dominio común y una contraseña para permitir que los switches pertenecieran al mismo dominio VTP.
+
+| Parámetro   | Configuración     |
+| ----------- | ----------------- |
+| Versión VTP | `2`               |
+| Dominio VTP | `proyecto1Redes2` |
+| Contraseña  | `redes2`          |
+| MS1         | Servidor VTP      |
+| MS2–MS9     | Clientes VTP      |
+| SW1–SW4     | Clientes VTP      |
+
+
+### 4.2 Protocolo STP
+
+El Spanning Tree Protocol (STP) se implementó para evitar bucles de capa 2 dentro de la red conmutada.
+
+Debido a que la topología cuenta con enlaces redundantes entre switches, existe la posibilidad de que se formen caminos circulares. Para evitar estos bucles se utilizó Rapid-PVST+, que proporciona una convergencia más rápida que STP tradicional y permite manejar una instancia de spanning-tree por VLAN.
+
+La configuración establece a MS1 como Root Bridge principal para las VLAN utilizadas en el proyecto.
+
+VLAN configuradas para STP
+
+| VLAN | Root Bridge principal |
+| ---: | --------------------- |
+|   10 | MS1                   |
+|   20 | MS1                   |
+|   30 | MS1                   |
+|   40 | MS1                   |
+|   99 | MS1                   |
+
+
+### Configuración realizada
+
+MS1
+
+    en
+    conf t
+
+    !Configuracion vtp
+     vtp version 2
+     vtp mode server
+     vtp domain proyecto1Redes2
+     vtp password redes2
+
+    !configuracion stp
+    !activacion de rpvst
+     spanning-tree mode rapid-pvst 
+    !configuracion como root-bridge para todas las vlans despues de verlas creado
+     spanning-tree vlan 10 root primary
+     spanning-tree vlan 20 root primary
+     spanning-tree vlan 30 root primary
+     spanning-tree vlan 40 root primary
+     spanning-tree vlan 99 root primary
+     exit
+
+Para los demas swiths
+
+    en
+    conf t
+    !Configuracion vtp
+     vtp version 2
+     vtp mode client
+     vtp domain proyecto1Redes2
+     vtp password redes2
+
+    !configuracion stp
+    !activacion de rpvst
+     spanning-tree mode rapid-pvst
+     exit
+
+
+### Verificación
+
+Para verificar el estado y configuración de VTP se recomienda utilizar:
+
+    show vtp status
+
+Para comprobar que las VLAN están disponibles en los switches clientes.
+    show vlan brief
+
+Para comprobar el funcionamiento de Spanning Tree se utiliza:
+
+    show spanning-tree
 
 ---
