@@ -36,6 +36,7 @@ Correo: cesarhernandez0019@gmail.com
 
 ![imagen](/Proyecto1/img/topologia4.png)
 
+---
 
 ### 2.  **Esquemas de vlans**
 
@@ -90,5 +91,227 @@ La creación de las VLAN se realizó en el switch multicapa MS1 mediante el sigu
     exit
 
     end
+
+### Verificación
+
+Después de crear las VLAN, es recomendable verificar que hayan sido registradas correctamente en el switch mediante:
+
+    show vlan brief
+
+---
+
+### 3.  **Configuración de interfaces**
+
+Una vez creadas las VLAN, se configuraron las interfaces de los switches según la función que desempeñarán dentro de la topología. Los enlaces trunk permiten transportar múltiples VLAN entre dispositivos de red, mientras que los puertos access pertenecen a una única VLAN.
+
+### Configuración realizada
+
+MS1
+
+    en
+    conf t
+
+    !modo trunk
+     interface range g1/0/1-2
+      switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+      no shutdown
+      exit
+
+    !modo access
+    interface range g1/0/3-4
+     switchport mode access
+     switchport access vlan 99
+     no shutdown
+     exit
+    end
+
+
+MS2
+
+    en
+    conf t
+
+    !modo trunk
+     interface range g1/0/1-6
+      switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+      no shutdown
+      exit
+     end
+
+
+MS3
+
+    en
+    conf t
+
+    !modo trunk
+     interface range fa0/1-7
+      switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+      no shutdown
+      exit
+     end
+
+
+MS4
+
+    en
+    conf t
+
+    !modo trunk
+    interface range fa0/1-6
+     switchport trunk encapsulation dot1q
+     switchport mode trunk
+     switchport trunk allowed vlan 10,20,30,40,99
+     no shutdown
+     exit
+    end
+
+
+MS5
+
+    en
+    conf t
+
+    !modo trunk
+    interface range fa0/1-4
+     switchport trunk encapsulation dot1q
+     switchport mode trunk
+     switchport trunk allowed vlan 10,20,30,40,99
+     no shutdown
+     exit
+    end
+
+
+MS6
+
+    en
+    conf t
+
+    !modo trunk
+    interface range g1/0/1-2
+     switchport trunk encapsulation dot1q
+     switchport mode trunk
+     switchport trunk allowed vlan 10,20,30,40,99
+     no shutdown
+     exit
+
+    !modo access
+    interface g1/0/3
+     switchport mode access
+     switchport access vlan 99
+     no shutdown
+     exit
+    end
+
+
+MS7
+
+    en
+    conf t
+
+    !modo trunk
+    interface range g1/0/1-9
+    switchport trunk encapsulation dot1q
+     switchport mode trunk
+     switchport trunk allowed vlan 10,20,30,40,99
+     no shutdown
+     exit
+    end
+
+
+
+MS8 y MS9
+
+    en
+    conf t
+
+    !modo trunk  giga
+    interface range g0/1-2
+     switchport trunk encapsulation dot1q
+     switchport mode trunk
+     switchport trunk allowed vlan 10,20,30,40,99
+     no shutdown
+     exit
+
+    !modo trunk fast
+    interface range fa0/1-6
+     switchport trunk encapsulation dot1q
+     switchport mode trunk
+     switchport trunk allowed vlan 10,20,30,40,99
+     no shutdown
+     exit
+    end
+
+
+SW1 y SW2
+
+    en
+    conf t
+
+    !modo trunk
+    interface range g0/1-2
+     switchport mode trunk
+     switchport trunk allowed vlan 10,20,30,40,99
+     no shutdown
+     exit
+
+    !modo access
+    interface f0/1
+     switchport mode access
+     switchport access vlan 10
+     no shutdown
+     exit
+
+    interface f0/2
+     switchport mode access
+     switchport access vlan 20
+     no shutdown
+     exit
+    end
+
+
+SW3 y SW4
+
+    en
+    conf t
+
+    !modo trunk
+    interface F0/3
+     switchport mode trunk
+     switchport trunk allowed vlan 10,20,30,40,99
+     no shutdown
+     exit
+
+    !modo access
+    interface f0/1
+     switchport mode access
+     switchport access vlan 40
+     no shutdown
+     exit
+
+    interface f0/2
+     switchport mode access
+     switchport access vlan 30
+     no shutdown
+     exit
+    end
+
+### Verificación
+
+Para comprobar que las interfaces fueron configuradas correctamente como enlaces trunk, se utilizó:
+
+    show interfaces trunk
+
+---
+
+### 4.  **Protocolos VTP y STP**
+
+
 
 ---
