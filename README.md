@@ -1,6 +1,6 @@
-# **_Curso de Redes 1_**
+# **_Curso de Redes 2_**
 
-### 2do Semestre del 2025
+### 2do Semestre del 2026
 
 ```js
 Universidad San Carlos de Guatemala
