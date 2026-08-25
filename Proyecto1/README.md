@@ -672,3 +672,74 @@ Se realizó `shutdown` en un puerto físico
 
 
 ---
+
+### 6. **Direccionamiento IP — Subnetting (VLSM y FLSM)**
+
+### Redes base asignadas
+`192.188.X.0/24` (donde X corresponde a los últimos dos dígitos de su carné) para 
+VLANs de usuarios. 
+
+`10.4.X.0/24` (donde X corresponde a los últimos dos dígitos de su carné) para enlaces 
+de enrutamiento.
+
+- `192.188.6.0/24` → VLANs de usuario (VLSM)
+- `10.4.6.0/24` → Enlaces de enrutamiento punto a punto (FLSM)
+
+Para el cálculo de VLSM se consideró la cantidad de hosts actuales en cada VLAN 
+más un margen de crecimiento, evitando tanto el desperdicio excesivo de 
+direcciones como un dimensionamiento demasiado ajustado que impida escalar 
+la red sin rediseñar el esquema. Las subredes se ordenaron de mayor a menor 
+tamaño, dejando el resto del bloque `192.188.6.0/24` sin asignar como reserva 
+para la creación de nuevas VLANs en el futuro.
+
+Para los enlaces de enrutamiento se utilizó FLSM con bloques fijos `/30`, 
+ya que todo enlace punto a punto requiere únicamente 2 direcciones IP 
+usables, independientemente de su ubicación en la topología.
+
+### 6.1 VLSM — Subredes de VLANs (192.188.6.0/24)
+
+| VLAN | Nombre | Red | Máscara | Rango usable | Broadcast | Gateway (SVI) |
+|---|---|---|---|---|---|---|
+| 10 | Naranja IZQ | 192.188.6.0 | /27 (255.255.255.224) | .1 – .30 | .31 | 192.188.6.1 |
+| 20 | Verde IZQ | 192.188.6.32 | /27 (255.255.255.224) | .33 – .62 | .63 | 192.188.6.33 |
+| 30 | Naranja DER | 192.188.6.64 | /28 (255.255.255.240) | .65 – .78 | .79 | 192.188.6.65 |
+| 40 | Verde DER | 192.188.6.80 | /28 (255.255.255.240) | .81 – .94 | .95 | 192.188.6.81 |
+| 99 | ADMIN | 192.188.6.96 | /29 (255.255.255.248) | .97 – .102 | .103 | 192.188.6.97 |
+
+**Asignación de hosts fijos en VLAN ADMIN:**
+
+| Dispositivo | IP | Máscara | Gateway |
+|---|---|---|---|
+| SVI VLAN 99 (gateway) | 192.188.6.97 | /29 | — |
+| Server DHCP1 (Izquierdo) | 192.188.6.98 | /29 | 192.188.6.97 |
+| Server DHCP2 (Derecho) | 192.188.6.99 | /29 | 192.188.6.97 |
+| PC Administración | 192.188.6.100 | /29 | 192.188.6.97 |
+
+
+**Espacio reservado para crecimiento futuro:**
+El rango `192.188.6.104` en adelante (hasta `192.188.6.255`) queda sin 
+asignar, disponible para la creación de nuevas VLANs o la expansión de 
+las subredes existentes sin necesidad de rediseñar el esquema de 
+direccionamiento actual.
+
+### 6.2 FLSM — Enlaces de enrutamiento (10.4.6.0/24)
+
+
+Todos los enlaces punto a punto que interconectan los switches multicapa 
+de la Red MAN utilizan bloques fijos /30 (255.255.255.252), ya que cada 
+enlace requiere únicamente 2 direcciones IP usables sin importar su 
+ubicación en la topología.
+
+| Enlace | Switch A | Switch B | Subred | IP Switch A | IP Switch B |
+|---|---|---|---|---|---|
+| 1 | MS1 | MS7 | 10.4.6.0/30 | 10.4.6.1 | 10.4.6.2 |
+| 2 | MS1 | MS2 | 10.4.6.4/30 | 10.4.6.5 | 10.4.6.6 |
+| 3 | MS7 | MS6 | 10.4.6.8/30 | 10.4.6.9 | 10.4.6.10 |
+| 4 | MS7 | MS2 | 10.4.6.12/30 | 10.4.6.13 | 10.4.6.14 |
+| 5 | MS2 | MS6 | 10.4.6.16/30 | 10.4.6.17 | 10.4.6.18 |
+
+El resto del bloque 10.4.6.0/24 (desde 10.4.6.20 en adelante) queda 
+disponible como reserva para enlaces de enrutamiento adicionales que 
+se requieran en el futuro.
+
+---
