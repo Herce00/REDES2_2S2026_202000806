@@ -13,7 +13,7 @@ Correo: cesarhernandez0019@gmail.com
 
 ## **_Documentacion Disponible_**
 
-1. Practica 1
+1. Proyecto 1
 
    [Documentacion Proyecto 1](/Proyecto1/README.md)
 

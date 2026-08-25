@@ -374,7 +374,7 @@ MS1
      spanning-tree vlan 99 root primary
      exit
 
-Para los demas swiths
+Para los demas switchs
 
     en
     conf t
@@ -397,10 +397,278 @@ Para verificar el estado y configuración de VTP se recomienda utilizar:
     show vtp status
 
 Para comprobar que las VLAN están disponibles en los switches clientes.
+
     show vlan brief
 
 Para comprobar el funcionamiento de Spanning Tree se utiliza:
 
     show spanning-tree
+
+---
+
+### 5. **Agregacion de Enlaces (Etherchannel)**
+
+### 5.1 Agregación de Enlaces — LACP (Edificio Izquierdo)
+
+
+LACP (Link Aggregation Control Protocol - IEEE 802.3ad), modo `active` en ambos extremos de cada enlace.
+
+### Enlaces configurados (5 en total)
+
+| Enlace | Switch A | Puertos A | Switch B | Puertos B |
+|---|---|---|---|---|
+| 1 | MS7 | Gi1/0/1-3 | MS9 | Fa0/1-3 |
+| 2 | MS7 | Gi1/0/4-6 | MS8 | Fa0/1-3 |
+| 3 | MS8 | Fa0/4-6 | MS9 | Fa0/4-6 |
+| 4 | MS8 | Gi0/1-2 | SW2 | Gi0/1-2 |
+| 5 | MS9 | Gi0/1-2 | SW1 | Gi0/1-2 |
+
+### Configuración realizada
+MS7
+
+    en
+    conf t
+    !creación del porthchannel
+    !Grupo 1
+     !Creacion del portchanel y configuracion del mismo
+     interface port-channel 1
+      !  switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range GigabitEthernet1/0/1-3
+      channel-protocol lacp
+      channel-group 1 mode active
+
+
+    !Grupo 2
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 2
+     !  switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range GigabitEthernet1/0/4-6
+      channel-protocol lacp
+      channel-group 2 mode active
+      end
+
+MS9
+
+    en
+    conf t
+    !creación del porthchannel
+    !Grupo 1
+     !Creacion del portchanel y configuracion del mismo
+     interface port-channel 1
+      !  switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range fastEthernet0/1-3
+      channel-protocol lacp
+      channel-group 1 mode active
+      exit
+
+    !Grupo 2
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 2
+     !  switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range fastEthernet0/4-6
+      channel-protocol lacp
+      channel-group 2 mode active
+      exit
+
+    !Grupo 3
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 3
+     !  switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range GigabitEthernet0/1-2
+      channel-protocol lacp
+      channel-group 3 mode active
+      end
+
+MS8
+
+    en
+    conf t
+    !creación del porthchannel
+    !Grupo 1
+     !Creacion del portchanel y configuracion del mismo
+     interface port-channel 1
+      !  switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range fastEthernet0/1-3
+      channel-protocol lacp
+      channel-group 1 mode active
+      exit
+
+    !Grupo 2
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 2
+     !  switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range fastEthernet0/4-6
+      channel-protocol lacp
+      channel-group 2 mode active
+      exit
+
+    !Grupo 3
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 3
+     !  switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range GigabitEthernet0/1-2
+      channel-protocol lacp
+      channel-group 3 mode active
+      end
+
+SW1 y SW2
+
+    en
+    conf t
+    !creación del porthchannel
+    !Grupo 1
+     !Creacion del portchanel y configuracion del mismo
+     interface port-channel 1
+      !  switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range GigabitEthernet0/1-2
+      channel-protocol lacp
+      channel-group 1 mode active
+      exit
+      end
+
+
+### 5.2 Agregación de Enlaces — PAgP (Edificio Derecho)
+
+Protocolo PAgP (Port Aggregation Protocol - propietario de Cisco), modo `desirable` en ambos extremos de cada enlace.
+
+### Enlaces configurados (3 en total)
+
+| Enlace | Switch A | Puertos A | Switch B | Puertos B |
+|---|---|---|---|---|
+| 1 | MS2 | Gi1/0/1-3 | MS3 | Fa0/1-3 |
+| 2 | MS3 | Fa0/4-7 | MS4 | Fa0/1-4 |
+| 3 | MS4 | Fa0/5-6 | MS5 | Fa0/1-2 |
+
+### Configuración realizada
+
+MS2
+
+    en
+    conf t
+    !creación del porthchannel
+    !Grupo 1
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 1
+      !switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range GigabitEthernet1/0/1-3
+      channel-protocol pagp
+      channel-group 1 mode desirable
+      end
+
+MS3
+
+    en
+    conf t
+    !creación del porthchannel
+    !Grupo 1
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 1
+      !switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range fastEthernet0/1-3
+      channel-protocol pagp
+      channel-group 1 mode desirable
+      exit
+
+    !Grupo 2
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 2
+      !switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range fastEthernet0/4-7
+      channel-protocol pagp
+      channel-group 2 mode desirable
+      end
+
+MS4
+
+    en
+    conf t
+    !creación del porthchannel
+    !Grupo 1
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 1
+      !switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range fastEthernet0/1-4
+      channel-protocol pagp
+      channel-group 1 mode desirable
+      exit
+
+    !Grupo 2
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 2
+      !switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range fastEthernet0/5-6
+      channel-protocol pagp
+      channel-group 2 mode desirable
+      end
+
+MS5
+
+    en
+    conf t
+    !creación del porthchannel
+    !Grupo 1
+    !Creacion del portchanel y configuracion del mismo
+     interface port-channel 1
+      !switchport trunk encapsulation dot1q
+      switchport mode trunk
+      switchport trunk allowed vlan 10,20,30,40,99
+    !asignamos las interfaces al portchannel creado
+     interface range fastEthernet0/1-2
+      channel-protocol pagp
+      channel-group 1 mode desirable
+      end
+
+### Verificación
+
+    show etherchannel summary
+    show interfaces port-channel 1
+    show spanning-tree active
+
+### Prueba de tolerancia a fallos
+
+Se realizó `shutdown` en un puerto físico
+
 
 ---
