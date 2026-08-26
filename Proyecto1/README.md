@@ -733,7 +733,7 @@ usables, independientemente de su ubicación en la topología.
 | Dispositivo | IP | Máscara | Gateway | Tipo |
 |---|---|---|---|---|
 | SVI VLAN 99 (gateway) | 192.188.6.97 | /29 | — | — |
-| PC Administración | 192.188.6.98 | /29 | 192.188.6.97 | Dinámica (DHCP) |
+| PC Administración | 192.188.6.98 | /29 | 192.188.6.97 | Dinámica (DHCP) | -->
 
 **Asignación de hosts fijos — VLAN 100 (Gestión DHCP, switch MS1):**
 
@@ -741,7 +741,7 @@ usables, independientemente de su ubicación en la topología.
 |---|---|---|---|---|
 | SVI VLAN 100 (gateway) | 192.188.6.105 | /29 | — | — |
 | Server DHCP1 (Izquierdo) | 192.188.6.106 | /29 | 192.188.6.105 | Estática |
-| Server DHCP2 (Derecho) | 192.188.6.107 | /29 | 192.188.6.105 | Estática | -->
+| Server DHCP2 (Derecho) | 192.188.6.107 | /29 | 192.188.6.105 | Estática |
 
 **Espacio reservado para crecimiento futuro:**
 El rango `192.188.6.112` en adelante (hasta `192.188.6.255`) queda sin 
@@ -968,5 +968,92 @@ Para ver las interfaces con sus ips
 Para ver las ips
 
     show ip route
+
+---
+
+
+### 6. **Servicios de Red — DHCP**
+
+### Distribución de responsabilidad por servidor
+
+Según lo requerido en el enunciado, cada servidor DHCP atiende las VLANs 
+de su edificio correspondiente.
+
+| Servidor | IP (estática) | Edificio | VLANs que atiende |
+|---|---|---|---|
+| DHCP1 | 192.188.6.106 | Izquierdo | VLAN 10, VLAN 20 |
+| DHCP2 | 192.188.6.107 | Derecho | VLAN 30, VLAN 40 |
+
+Ambos servidores utilizan direccionamiento **estático**, ya que un 
+servidor DHCP no puede obtener su propia IP de forma dinámica sin 
+generar una dependencia circular. Esta es la única excepción a la 
+regla de "sin IP estática" del proyecto, aplicable únicamente a 
+infraestructura de servicio, no a dispositivos finales de usuario.
+
+### Pools configurados — Servidor DHCP1 (Izquierdo)
+
+| Pool | VLAN | Gateway | Rango de asignación | Máscara |
+|---|---|---|---|---|
+| Pool_Naranja_IZQ | 10 | 192.188.6.1 | 192.188.6.2 – 192.188.6.30 | 255.255.255.224 |
+| Pool_Verde_IZQ | 20 | 192.188.6.33 | 192.188.6.34 – 192.188.6.62 | 255.255.255.224 |
+
+
+### Pools configurados — Servidor DHCP2 (Derecho)
+
+| Pool | VLAN | Gateway | Rango de asignación | Máscara |
+|---|---|---|---|---|
+| Pool_Naranja_DER | 30 | 192.188.6.65 | 192.188.6.66 – 192.188.6.78 | 255.255.255.240 |
+| Pool_Verde_DER | 40 | 192.188.6.81 | 192.188.6.82 – 192.188.6.94 | 255.255.255.240 |
+
+### DHCP Relay — ip helper-address
+
+Dado que los servidores DHCP no residen dentro de las VLANs de usuario, 
+se configuró DHCP Relay en las SVIs correspondientes para reenviar las 
+solicitudes broadcast como tráfico unicast hacia el servidor adecuado.
+
+### Comandos de configuración
+
+**MS7 — VLAN 10 y 20 (apuntan a DHCP1)**
+
+    enable
+    configure terminal
+     interface vlan 10
+      ip helper-address 192.188.6.106
+      exit
+     interface vlan 20
+      ip helper-address 192.188.6.106
+      exit
+
+**MS2 — VLAN 30 y 40 (apuntan a DHCP2)**
+
+    enable
+    configure terminal
+     interface vlan 30
+      ip helper-address 192.188.6.107
+      exit
+     interface vlan 40
+      ip helper-address 192.188.6.107
+      exit
+
+### Configuración en dispositivos finales
+
+Todos los PCs y laptops de las 5 VLANs (10, 20, 30, 40) se 
+configuraron en modo **DHCP** (Desktop → IP Configuration → DHCP), 
+sin excepción, cumpliendo con el requisito del proyecto de no utilizar 
+direccionamiento estático en dispositivos finales.
+
+### Verificación
+
+    show ip dhcp binding      (en el router/switch, si aplica)
+    ipconfig                  (en cada PC, desde Command Prompt)
+    show ip interface brief   (confirmar helper-address aplicado)
+
+### Resultado esperado
+Cada PC/laptop obtiene automáticamente su dirección IP, máscara de 
+subred y gateway correspondiente a su VLAN, sin necesidad de 
+configuración manual, confirmando el correcto funcionamiento del 
+servicio DHCP a través de las subredes mediante DHCP Relay.
+
+
 
 ---
