@@ -47,6 +47,7 @@ Correo: cesarhernandez0019@gmail.com
 |  **30** | `VLAN_Naranja_EdificioDER_202000806` | Edificio Derecho        | Segmento Naranja                               |
 |  **40** | `VLAN_Verde_EdificioDER_202000806`   | Edificio Derecho        | Segmento Verde                                 |
 |  **99** | `VLAN_ADMIN_EdificioADM_202000806`   | Edificio Administrativo | Administración y gestión de la infraestructura |
+|  **100**| `VLAN_GesitonDHCP_202000806`        | Edificio ServidoresDHCP | Administrar los servidores DHCP                |
 
 
 ### Criterio de numeración
@@ -57,40 +58,59 @@ La numeración fue definida de manera que exista una separación entre los ident
     VLAN 30: Naranja – Edificio Derecho.
     VLAN 40: Verde – Edificio Derecho.
     VLAN 99: Administración.
+    VLAN 100: Administración ServidoresDHCP.
 
 La VLAN 99 se mantiene separada de las VLAN destinadas a los usuarios para facilitar la administración y gestión de los dispositivos de red.
 
 
-### Configuración realizada en MS1
-La creación de las VLAN se realizó en el switch multicapa MS1 mediante el siguiente procedimiento:
+### Configuración realizada
 
-    enable
-    configure terminal
+MS1
 
-    hostname MS1
+    en
+    conf t
+     hostname MS1
+     !Creacion de vlan
+     vlan 100
+      name  VLAN_GesitonDHCP_202000806
+      end
 
-    ! Creación de VLANs
-    vlan 10
-    name VLAN_Naranja_EdificioIZQ_202000806
-    exit
+MS2
 
-    vlan 20
-    name VLAN_Verde_EdificioIZQ_202000806
-    exit
+    en
+    conf t
+     hostname MS2
+     !Creacion de vlans
+     vlan 30
+      name  VLAN_Naranja_EdificioDER_202000806
+      exit
+     vlan 40
+      name  VLAN_Verde_EdificioDER_202000806
+      end
 
-    vlan 30
-    name VLAN_Naranja_EdificioDER_202000806
-    exit
 
-    vlan 40
-    name VLAN_Verde_EdificioDER_202000806
-    exit
+MS6
 
-    vlan 99
-    name VLAN_ADMIN_EdificioADM_202000806
-    exit
+    en 
+    conf t
+     hostname MS6
+     !Creacion de vlan
+     vlan 99
+      name  VLAN_ADMIN_EdificioADM_202000806
+      end
 
-    end
+MS7
+
+    en
+    conf t
+     hostname MS7
+     !Creacion de vlans
+     vlan 10
+      name  VLAN_Naranja_EdificioIZQ_202000806
+      exit
+     vlan 20
+      name  VLAN_Verde_EdificioIZQ_202000806
+      end
 
 ### Verificación
 
@@ -111,18 +131,10 @@ MS1
     en
     conf t
 
-    !modo trunk
-     interface range g1/0/1-2
-      switchport trunk encapsulation dot1q
-      switchport mode trunk
-      switchport trunk allowed vlan 10,20,30,40,99
-      no shutdown
-      exit
-
     !modo access
     interface range g1/0/3-4
      switchport mode access
-     switchport access vlan 99
+     switchport access vlan 100
      no shutdown
      exit
     end
@@ -193,14 +205,6 @@ MS6
     en
     conf t
 
-    !modo trunk
-    interface range g1/0/1-2
-     switchport trunk encapsulation dot1q
-     switchport mode trunk
-     switchport trunk allowed vlan 10,20,30,40,99
-     no shutdown
-     exit
-
     !modo access
     interface g1/0/3
      switchport mode access
@@ -216,7 +220,7 @@ MS7
     conf t
 
     !modo trunk
-    interface range g1/0/1-9
+    interface range g1/0/1-6
     switchport trunk encapsulation dot1q
      switchport mode trunk
      switchport trunk allowed vlan 10,20,30,40,99
@@ -326,8 +330,10 @@ Se utilizó VTP versión 2, con un dominio común y una contraseña para permiti
 | Versión VTP | `2`               |
 | Dominio VTP | `proyecto1Redes2` |
 | Contraseña  | `redes2`          |
-| MS1         | Servidor VTP      |
-| MS2–MS9     | Clientes VTP      |
+| MS2         | Servidor VTP      |
+| MS3–MS5     | Clientes VTP      |
+| MS7         | Servidor VTP      |
+| MS8–MS9     | Clientes VTP      |
 | SW1–SW4     | Clientes VTP      |
 
 
@@ -337,22 +343,40 @@ El Spanning Tree Protocol (STP) se implementó para evitar bucles de capa 2 dent
 
 Debido a que la topología cuenta con enlaces redundantes entre switches, existe la posibilidad de que se formen caminos circulares. Para evitar estos bucles se utilizó Rapid-PVST+, que proporciona una convergencia más rápida que STP tradicional y permite manejar una instancia de spanning-tree por VLAN.
 
-La configuración establece a MS1 como Root Bridge principal para las VLAN utilizadas en el proyecto.
+La configuración establece a MS2 y MS7 como Root Bridge principal para las VLAN utilizadas en el proyecto.
 
 VLAN configuradas para STP
 
 | VLAN | Root Bridge principal |
 | ---: | --------------------- |
-|   10 | MS1                   |
-|   20 | MS1                   |
-|   30 | MS1                   |
-|   40 | MS1                   |
-|   99 | MS1                   |
+|   10 | MS7                   |
+|   20 | MS7                   |
+|   30 | MS2                   |
+|   40 | MS2                   |
 
 
 ### Configuración realizada
 
-MS1
+MS2
+
+    en
+    conf t
+
+    !Configuracion vtp
+     vtp version 2
+     vtp mode server
+     vtp domain proyecto1Redes2
+     vtp password redes2
+
+    !configuracion stp
+    !activacion de rpvst
+     spanning-tree mode rapid-pvst 
+    !configuracion como root-bridge para todas las vlans despues de verlas creado
+     spanning-tree vlan 30 root primary
+     spanning-tree vlan 40 root primary
+     exit
+
+MS7
 
     en
     conf t
@@ -369,9 +393,6 @@ MS1
     !configuracion como root-bridge para todas las vlans despues de verlas creado
      spanning-tree vlan 10 root primary
      spanning-tree vlan 20 root primary
-     spanning-tree vlan 30 root primary
-     spanning-tree vlan 40 root primary
-     spanning-tree vlan 99 root primary
      exit
 
 Para los demas switchs
@@ -698,26 +719,32 @@ usables, independientemente de su ubicación en la topología.
 
 ### 6.1 VLSM — Subredes de VLANs (192.188.6.0/24)
 
-| VLAN | Nombre | Red | Máscara | Rango usable | Broadcast | Gateway (SVI) |
-|---|---|---|---|---|---|---|
-| 10 | Naranja IZQ | 192.188.6.0 | /27 (255.255.255.224) | .1 – .30 | .31 | 192.188.6.1 |
-| 20 | Verde IZQ | 192.188.6.32 | /27 (255.255.255.224) | .33 – .62 | .63 | 192.188.6.33 |
-| 30 | Naranja DER | 192.188.6.64 | /28 (255.255.255.240) | .65 – .78 | .79 | 192.188.6.65 |
-| 40 | Verde DER | 192.188.6.80 | /28 (255.255.255.240) | .81 – .94 | .95 | 192.188.6.81 |
-| 99 | ADMIN | 192.188.6.96 | /29 (255.255.255.248) | .97 – .102 | .103 | 192.188.6.97 |
+| VLAN | Nombre | Red | Máscara | Rango usable | Broadcast | Gateway (SVI) | Switch |
+|---|---|---|---|---|---|---|---|
+| 10 | Naranja IZQ | 192.188.6.0 | /27 (255.255.255.224) | .1 – .30 | .31 | 192.188.6.1 | MS7 |
+| 20 | Verde IZQ | 192.188.6.32 | /27 (255.255.255.224) | .33 – .62 | .63 | 192.188.6.33 | MS7 |
+| 30 | Naranja DER | 192.188.6.64 | /28 (255.255.255.240) | .65 – .78 | .79 | 192.188.6.65 | MS2 |
+| 40 | Verde DER | 192.188.6.80 | /28 (255.255.255.240) | .81 – .94 | .95 | 192.188.6.81 | MS2 |
+| 99 | ADMIN | 192.188.6.96 | /29 (255.255.255.248) | .97 – .102 | .103 | 192.188.6.97 | MS6 |
+| 100 | Gestión DHCP | 192.188.6.104 | /29 (255.255.255.248) | .105 – .110 | .111 | 192.188.6.105 | MS1 |
 
-**Asignación de hosts fijos en VLAN ADMIN:**
+<!-- **Asignación de hosts fijos — VLAN 99 (ADMIN, switch MS6):**
 
-| Dispositivo | IP | Máscara | Gateway |
-|---|---|---|---|
-| SVI VLAN 99 (gateway) | 192.188.6.97 | /29 | — |
-| Server DHCP1 (Izquierdo) | 192.188.6.98 | /29 | 192.188.6.97 |
-| Server DHCP2 (Derecho) | 192.188.6.99 | /29 | 192.188.6.97 |
-| PC Administración | 192.188.6.100 | /29 | 192.188.6.97 |
+| Dispositivo | IP | Máscara | Gateway | Tipo |
+|---|---|---|---|---|
+| SVI VLAN 99 (gateway) | 192.188.6.97 | /29 | — | — |
+| PC Administración | 192.188.6.98 | /29 | 192.188.6.97 | Dinámica (DHCP) |
 
+**Asignación de hosts fijos — VLAN 100 (Gestión DHCP, switch MS1):**
+
+| Dispositivo | IP | Máscara | Gateway | Tipo |
+|---|---|---|---|---|
+| SVI VLAN 100 (gateway) | 192.188.6.105 | /29 | — | — |
+| Server DHCP1 (Izquierdo) | 192.188.6.106 | /29 | 192.188.6.105 | Estática |
+| Server DHCP2 (Derecho) | 192.188.6.107 | /29 | 192.188.6.105 | Estática | -->
 
 **Espacio reservado para crecimiento futuro:**
-El rango `192.188.6.104` en adelante (hasta `192.188.6.255`) queda sin 
+El rango `192.188.6.112` en adelante (hasta `192.188.6.255`) queda sin 
 asignar, disponible para la creación de nuevas VLANs o la expansión de 
 las subredes existentes sin necesidad de rediseñar el esquema de 
 direccionamiento actual.
@@ -741,5 +768,205 @@ ubicación en la topología.
 El resto del bloque 10.4.6.0/24 (desde 10.4.6.20 en adelante) queda 
 disponible como reserva para enlaces de enrutamiento adicionales que 
 se requieran en el futuro.
+
+---
+
+
+### 6. **Enrutamiento Dinámico — OSPF**
+
+Según el carné del estudiante (terminación par: 06), corresponde utilizar 
+**OSPF (Open Shortest Path First)** como protocolo de enrutamiento dinámico, 
+tanto para la interconexión entre los 4 edificios (Red MAN) como para el 
+enrutamiento inter-VLAN dentro de cada edificio.
+
+OSPF permite que los switches multicapa aprendan automáticamente las rutas 
+hacia las redes remotas a través del intercambio de información entre 
+vecinos, sin necesidad de configurar rutas estáticas manualmente por cada 
+subred.
+
+Se utilizó un único proceso OSPF (`router ospf 1`) y una sola área (`area 0`, 
+backbone) dado el tamaño reducido de la red.
+
+
+### Dispositivos con OSPF configurado
+
+| Switch | Rol | Redes que anuncia |
+|---|---|---|
+| MS1 | Tránsito Red MAN + Gestión DHCP | 10.4.6.0/30, 10.4.6.4/30, 192.188.6.104/29 |
+| MS7 | Core Edificio Izquierdo | 10.4.6.0/30, 10.4.6.8/30, 10.4.6.12/30, 192.188.6.0/27, 192.188.6.32/27 |
+| MS2 | Distribución Edificio Derecho | 10.4.6.4/30, 10.4.6.12/30, 10.4.6.16/30, 192.188.6.64/28, 192.188.6.80/28 |
+| MS6 | Edificio Administración | 10.4.6.8/30, 10.4.6.16/30, 192.188.6.96/29 |
+
+### Comandos de configuración
+
+**MS1**
+
+    en
+    conf t
+    !configurando puertos y asignando ips
+     interface gigabitEthernet 1/0/1
+      no switchport
+      ip address 10.4.6.1 255.255.255.252
+      no shutdown
+      exit
+     interface gigabitEthernet 1/0/2
+      no switchport
+      ip address 10.4.6.5 255.255.255.252
+      no shutdown
+
+    !activamos la funcion de enrutamiento
+     ip routing
+
+    !configuracion inter-vlan
+     interface vlan 100
+      ip address 192.188.6.105 255.255.255.248
+      no shutdown  
+      exit
+
+    !enrutamiento dinamico OSPF
+     router ospf 1
+      !router-id 1.1.1.1
+      network 10.4.6.0 0.0.0.3 area 0
+      network 10.4.6.4 0.0.0.3 area 0
+      network 192.188.6.104 0.0.0.7 area 0
+      end
+
+
+**MS2**
+
+    en
+    conf t
+    !configurando puertos y asignando ips
+     interface gigabitEthernet 1/0/5
+      no switchport
+      ip address 10.4.6.6 255.255.255.252
+      no shutdown
+      exit
+     interface gigabitEthernet 1/0/6
+      no switchport
+      ip address 10.4.6.14 255.255.255.252
+      no shutdown
+      exit
+     interface gigabitEthernet 1/0/4
+      no switchport
+      ip address 10.4.6.17 255.255.255.252
+      no shutdown
+      exit
+
+    !activamos la funcion de enrutamiento
+     ip routing
+
+    !configuracion inter-vlan
+     interface vlan 30
+      ip address 192.188.6.65 255.255.255.240
+      no shutdown
+      exit
+     interface vlan 40
+      ip address 192.188.6.81 255.255.255.240
+      no shutdown
+      exit
+
+    !enrutamiento dinamico OSPF
+     router ospf 1
+      !router-id 2.2.2.2
+      network 10.4.6.4 0.0.0.3 area 0
+      network 10.4.6.12 0.0.0.3 area 0
+      network 10.4.6.16 0.0.0.3 area 0
+      network 192.188.6.64 0.0.0.15 area 0
+      network 192.188.6.80 0.0.0.15 area 0
+      end
+
+
+**MS6**
+
+    en
+    conf t
+    !configurando puertos y asignando ips
+     interface gigabitEthernet 1/0/1
+      no switchport
+      ip address 10.4.6.10 255.255.255.252
+      no shutdown
+      exit
+     interface gigabitEthernet 1/0/2
+      no switchport
+      ip address 10.4.6.18 255.255.255.252
+      no shutdown
+      exit
+
+    !activamos la funcion de enrutamiento
+     ip routing
+
+    !configuracion inter-vlan
+     interface vlan 99
+      ip address 192.188.6.97 255.255.255.248
+      no shutdown
+      exit
+
+    !enrutamiento dinamico OSPF
+     router ospf 1
+      !router-id 6.6.6.6
+      network 10.4.6.8 0.0.0.3 area 0
+      network 10.4.6.16 0.0.0.3 area 0
+      network 192.188.6.96 0.0.0.7 area 0
+      end
+
+
+**MS7**
+
+    en
+    conf t
+    !configurando puertos y asignando ips
+     interface gigabitEthernet 1/0/8
+      no switchport
+      ip address 10.4.6.2 255.255.255.252
+      no shutdown
+      exit
+     interface gigabitEthernet 1/0/7
+      no switchport
+      ip address 10.4.6.9 255.255.255.252
+      no shutdown
+      exit
+     interface gigabitEthernet 1/0/9
+      no switchport
+      ip address 10.4.6.13 255.255.255.252
+      no shutdown
+      exit
+
+    !activamos la funcion de enrutamiento
+     ip routing
+
+    !configuracion inter-vlan
+     interface vlan 10
+      ip address 192.188.6.1 255.255.255.224
+      no shutdown
+      exit
+     interface vlan 20
+      ip address 192.188.6.33 255.255.255.224
+      no shutdown
+      exit
+
+    !enrutamiento dinamico OSPF
+     router ospf 1
+      !router-id 7.7.7.7
+      network 10.4.6.0 0.0.0.3 area 0
+      network 10.4.6.8 0.0.0.3 area 0
+      network 10.4.6.12 0.0.0.3 area 0
+      network 192.188.6.0 0.0.0.31 area 0
+      network 192.188.6.32 0.0.0.31 area 0
+      end
+
+### Verificación
+
+Para ver la rutas en el protocolo de enrutamiento
+
+    show ip route ospf
+
+Para ver las interfaces con sus ips
+
+    show ip interface brief
+
+Para ver las ips
+
+    show ip route
 
 ---
