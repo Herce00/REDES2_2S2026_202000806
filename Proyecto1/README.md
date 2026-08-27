@@ -1057,3 +1057,173 @@ servicio DHCP a través de las subredes mediante DHCP Relay.
 
 
 ---
+
+### 6. **Seguridad y Control de Acceso — ACLs**
+
+| VLAN | Política |
+|---|---|
+| Naranja (10, 30) | Comunicación permitida solo entre Naranja de ambos edificios. Bloqueada hacia Verde y ADMIN. |
+| Verde (20, 40) | Comunicación permitida solo entre Verde de ambos edificios. Bloqueada hacia Naranja y ADMIN. |
+| ADMIN (99) | Puede iniciar comunicación (ping) hacia todas las VLANs. Ninguna VLAN puede iniciar comunicación hacia ADMIN, pero sí se permite la respuesta (echo-reply) a sesiones iniciadas por ADMIN. |
+
+Se utilizaron ACLs extendidas nombradas, aplicadas en dirección `in` 
+sobre la SVI de origen del tráfico, en los switches donde ocurre el 
+enrutamiento inter-VLAN (MS7, MS2).
+
+### Puntos de aplicación
+
+| Switch | VLAN | ACL aplicada | Dirección |
+|---|---|---|---|
+| MS7 | 10 (Naranja IZQ) | ACL_NARANJA_IZQ | in |
+| MS7 | 20 (Verde IZQ) | ACL_VERDE_IZQ | in |
+| MS2 | 30 (Naranja DER) | ACL_NARANJA_DER | in |
+| MS2 | 40 (Verde DER) | ACL_VERDE_DER | in |
+
+
+**Propósito de cada regla — ACL_NARANJA_IZQ (aplicada en VLAN 10, MS7):**
+
+| Línea | Propósito |
+|---|---|
+| permit ip 192.188.6.0/27 → 192.188.6.64/28 | Permite comunicación con VLAN Naranja DER (misma VLAN, otro edificio) |
+| permit icmp echo-reply → 192.188.6.96/29 | Permite respuesta a ping iniciado por VLAN ADMIN |
+| deny ip → 192.188.6.32/27 | Bloquea comunicación hacia VLAN Verde IZQ |
+| deny ip → 192.188.6.80/28 | Bloquea comunicación hacia VLAN Verde DER |
+| deny ip → 192.188.6.96/29 | Bloquea inicio de comunicación hacia VLAN ADMIN |
+| deny ip → 192.188.6.104/29 | Bloquea comunicación hacia subred de gestión DHCP |
+| permit ip any any | Permite el resto del tráfico no contemplado explícitamente |
+
+**Propósito de cada regla — ACL_VERDE_IZQ (aplicada en VLAN 20, MS7):**
+
+| Línea | Propósito |
+|---|---|
+| permit ip 192.188.6.32/27 → 192.188.6.80/28 | Permite comunicación con VLAN Verde DER (misma VLAN, otro edificio) |
+| permit icmp echo-reply → 192.188.6.96/29 | Permite respuesta a ping iniciado por VLAN ADMIN |
+| deny ip → 192.188.6.0/27 | Bloquea comunicación hacia VLAN Naranja IZQ |
+| deny ip → 192.188.6.64/28 | Bloquea comunicación hacia VLAN Naranja DER |
+| deny ip → 192.188.6.96/29 | Bloquea inicio de comunicación hacia VLAN ADMIN |
+| deny ip → 192.188.6.104/29 | Bloquea comunicación hacia subred de gestión DHCP |
+| permit ip any any | Permite el resto del tráfico no contemplado explícitamente |
+
+**Propósito de cada regla — ACL_NARANJA_DER (aplicada en VLAN 30, MS2):**
+
+| Línea | Propósito |
+|---|---|
+| permit ip 192.188.6.64/28 → 192.188.6.0/27 | Permite comunicación con VLAN Naranja IZQ (misma VLAN, otro edificio) |
+| permit icmp echo-reply → 192.188.6.96/29 | Permite respuesta a ping iniciado por VLAN ADMIN |
+| deny ip → 192.188.6.32/27 | Bloquea comunicación hacia VLAN Verde IZQ |
+| deny ip → 192.188.6.80/28 | Bloquea comunicación hacia VLAN Verde DER |
+| deny ip → 192.188.6.96/29 | Bloquea inicio de comunicación hacia VLAN ADMIN |
+| deny ip → 192.188.6.104/29 | Bloquea comunicación hacia subred de gestión DHCP |
+| permit ip any any | Permite el resto del tráfico no contemplado explícitamente |
+
+**Propósito de cada regla — ACL_VERDE_DER (aplicada en VLAN 40, MS2):**
+
+| Línea | Propósito |
+|---|---|
+| permit ip 192.188.6.80/28 → 192.188.6.32/27 | Permite comunicación con VLAN Verde IZQ (misma VLAN, otro edificio) |
+| permit icmp echo-reply → 192.188.6.96/29 | Permite respuesta a ping iniciado por VLAN ADMIN |
+| deny ip → 192.188.6.0/27 | Bloquea comunicación hacia VLAN Naranja IZQ |
+| deny ip → 192.188.6.64/28 | Bloquea comunicación hacia VLAN Naranja DER |
+| deny ip → 192.188.6.96/29 | Bloquea inicio de comunicación hacia VLAN ADMIN |
+| deny ip → 192.188.6.104/29 | Bloquea comunicación hacia subred de gestión DHCP |
+| permit ip any any | Permite el resto del tráfico no contemplado explícitamente |
+
+
+### Configuración — MS7
+
+    en
+    conf t
+    !Creamos la lista de acceso
+     ip access-list extended ACL_NARANJA_IZQ
+      permit ip 192.188.6.0 0.0.0.31 192.188.6.64 0.0.0.15
+      permit icmp 192.188.6.0 0.0.0.31 192.188.6.96 0.0.0.7 echo-reply
+      deny ip 192.188.6.0 0.0.0.31 192.188.6.32 0.0.0.31
+      deny ip 192.188.6.0 0.0.0.31 192.188.6.80 0.0.0.15
+      deny ip 192.188.6.0 0.0.0.31 192.188.6.96 0.0.0.7
+      deny ip 192.188.6.0 0.0.0.31 192.188.6.104 0.0.0.7
+      permit ip any any
+     exit
+    !Asignamos la lista de acceso
+     interface vlan 10
+      ip access-group ACL_NARANJA_IZQ in
+     exit
+
+    !Creamos la lista de acceso
+     ip access-list extended ACL_VERDE_IZQ
+      permit ip 192.188.6.32 0.0.0.31 192.188.6.80 0.0.0.15
+      permit icmp 192.188.6.32 0.0.0.31 192.188.6.96 0.0.0.7 echo-reply
+      deny ip 192.188.6.32 0.0.0.31 192.188.6.0 0.0.0.31
+      deny ip 192.188.6.32 0.0.0.31 192.188.6.64 0.0.0.15
+      deny ip 192.188.6.32 0.0.0.31 192.188.6.96 0.0.0.7
+      deny ip 192.188.6.32 0.0.0.31 192.188.6.104 0.0.0.7
+      permit ip any any
+     exit
+    !Asignamos la lista de acceso
+     interface vlan 20
+      ip access-group ACL_VERDE_IZQ in
+     exit
+     end
+
+### Configuración — MS2
+
+    en
+    conf t
+    !Creamos la lista de acceso
+     ip access-list extended ACL_NARANJA_DER
+      permit ip 192.188.6.64 0.0.0.15 192.188.6.0 0.0.0.31
+      permit icmp 192.188.6.64 0.0.0.15 192.188.6.96 0.0.0.7 echo-reply
+      deny ip 192.188.6.64 0.0.0.15 192.188.6.32 0.0.0.31
+      deny ip 192.188.6.64 0.0.0.15 192.188.6.80 0.0.0.15
+      deny ip 192.188.6.64 0.0.0.15 192.188.6.96 0.0.0.7
+      deny ip 192.188.6.64 0.0.0.15 192.188.6.104 0.0.0.7
+      permit ip any any
+     exit
+    !Asignamos la lista de acceso
+     interface vlan 30
+      ip access-group ACL_NARANJA_DER in
+     exit
+
+    !Creamos la lista de acceso
+     ip access-list extended ACL_VERDE_DER
+      permit ip 192.188.6.80 0.0.0.15 192.188.6.32 0.0.0.31
+      permit icmp 192.188.6.80 0.0.0.15 192.188.6.96 0.0.0.7 echo-reply
+      deny ip 192.188.6.80 0.0.0.15 192.188.6.0 0.0.0.31
+      deny ip 192.188.6.80 0.0.0.15 192.188.6.64 0.0.0.15
+      deny ip 192.188.6.80 0.0.0.15 192.188.6.96 0.0.0.7
+      deny ip 192.188.6.80 0.0.0.15 192.188.6.104 0.0.0.7
+      permit ip any any
+     exit
+    !Asignamos la lista de acceso
+     interface vlan 40
+      ip access-group ACL_VERDE_DER in
+     exit
+     end
+
+
+
+### Comandos de verificación
+
+Para ver la lista de listas de acceso 
+
+    show access-lists
+
+Para ver la listas de acceso asignadas a dicha vlan
+
+    show ip interface vlan [número]
+
+Para ver la lista de lo que capturo la lista de accesso
+
+    show access-lists nombreListaAcceso
+
+### Pruebas de conectividad realizadas
+
+| Origen | Destino | Resultado esperado | Resultado obtenido |
+|---|---|---|---|
+| Naranja IZQ | Naranja DER | Permitido | Successful|
+| Verde IZQ | Verde DER | Permitido | Successful|
+| Naranja IZQ | Verde IZQ/DER | Bloqueado | Failed|
+| Verde IZQ | Naranja IZQ/DER | Bloqueado | Failed|
+| ADMIN | Naranja/Verde (cualquiera) | Permitido | Successful|
+| Naranja/Verde (cualquiera) | ADMIN | Bloqueado | Failed|
+
+---
