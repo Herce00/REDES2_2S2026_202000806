@@ -321,7 +321,7 @@ Para comprobar que las interfaces fueron configuradas correctamente como enlaces
 
 El VLAN Trunking Protocol (VTP) se utilizó para facilitar la propagación y administración de las VLAN dentro de la infraestructura de switches.
 
-Se definió a MS1 como servidor VTP, encargado de mantener la información de las VLAN, mientras que los demás switches fueron configurados como clientes VTP.
+Se definió a MS7 y MS2 como servidor VTP, encargado de mantener la información de las VLAN, mientras que los demás switches fueron configurados como clientes VTP.
 
 Se utilizó VTP versión 2, con un dominio común y una contraseña para permitir que los switches pertenecieran al mismo dominio VTP.
 
@@ -981,7 +981,7 @@ de su edificio correspondiente.
 
 | Servidor | IP (estática) | Edificio | VLANs que atiende |
 |---|---|---|---|
-| DHCP1 | 192.188.6.106 | Izquierdo | VLAN 10, VLAN 20 |
+| DHCP1 | 192.188.6.106 | Izquierdo | VLAN 10, VLAN 20, VLAN 99 |
 | DHCP2 | 192.188.6.107 | Derecho | VLAN 30, VLAN 40 |
 
 Ambos servidores utilizan direccionamiento **estático**, ya que un 
@@ -996,6 +996,7 @@ infraestructura de servicio, no a dispositivos finales de usuario.
 |---|---|---|---|---|
 | Pool_Naranja_IZQ | 10 | 192.188.6.1 | 192.188.6.2 – 192.188.6.30 | 255.255.255.224 |
 | Pool_Verde_IZQ | 20 | 192.188.6.33 | 192.188.6.34 – 192.188.6.62 | 255.255.255.224 |
+| Pool_Admin | 99 | 192.188.6.97 | 192.188.6.98 – 192.188.6.102 | 255.255.255.248 |
 
 
 ### Pools configurados — Servidor DHCP2 (Derecho)
@@ -1023,6 +1024,14 @@ solicitudes broadcast como tráfico unicast hacia el servidor adecuado.
      interface vlan 20
       ip helper-address 192.188.6.106
       exit
+**MS6 — VLAN 99 (apuntan a DHCP1)**
+
+    enable
+    configure terminal
+     interface vlan 99
+      ip helper-address 192.188.6.106
+      exit
+    end
 
 **MS2 — VLAN 30 y 40 (apuntan a DHCP2)**
 
@@ -1034,10 +1043,11 @@ solicitudes broadcast como tráfico unicast hacia el servidor adecuado.
      interface vlan 40
       ip helper-address 192.188.6.107
       exit
+    end
 
 ### Configuración en dispositivos finales
 
-Todos los PCs y laptops de las 5 VLANs (10, 20, 30, 40) se 
+Todos los PCs y laptops de las 5 VLANs (10, 20, 30, 40, 99) se 
 configuraron en modo **DHCP** (Desktop → IP Configuration → DHCP), 
 sin excepción, cumpliendo con el requisito del proyecto de no utilizar 
 direccionamiento estático en dispositivos finales.
