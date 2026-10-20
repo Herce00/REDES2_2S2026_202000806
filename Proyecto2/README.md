@@ -109,14 +109,14 @@ El servidor usa IP estática, ya que el requisito de DHCP aplica a los dispositi
 
 Todos los enlaces entre equipos de distribución se implementan como pares de cables agrupados con LACP (`channel-group X mode active`), lo que da más ancho de banda y tolerancia a la falla de un cable.
 
-| Port-channel | Enlace         | Tipo                                      |
-| ------------ | -------------- | ----------------------------------------- |
-| Po1          | MS1 ↔ F-BORDER | Capa 3 (puerto enrutado, `no switchport`) |
-| Po2          | MS1 ↔ MS2      | Capa 3                                    |
-| Po3          | MS1 ↔ MS3      | Capa 3                                    |
-| Po4          | MS2 ↔ MS4      | Capa 3                                    |
-| Po5          | MS3 ↔ MS5      | Capa 3                                    |
-| Po6          | MS2 ↔ SW5      | Capa 2 (acceso a VLAN 10)                 |
+| Port-channel | Enlace         | Puertos A (equipo) | Puertos B (equipo)   | Tipo                                      |
+| ------------ | -------------- | ------------------ | -------------------- | ----------------------------------------- |
+| Po1          | MS1 ↔ F-BORDER | Fa0/1-2 (MS1)      | Gi1/0/1-2 (F-BORDER) | Capa 3 (puerto enrutado, `no switchport`) |
+| Po2          | MS1 ↔ MS2      | Fa0/3-4 (MS1)      | Fa0/1-2 (MS2)        | Capa 3                                    |
+| Po3          | MS1 ↔ MS3      | Fa0/5-6 (MS1)      | Fa0/1-2 (MS3)        | Capa 3                                    |
+| Po4          | MS2 ↔ MS4      | Fa0/3-4 (MS2)      | Fa0/1-2 (MS4)        | Capa 3                                    |
+| Po5          | MS3 ↔ MS5      | Fa0/3-4 (MS3)      | Fa0/1-2 (MS5)        | Capa 3                                    |
+| Po6          | MS2 ↔ SW5      | Fa0/5-6 (MS2)      | Fa0/2-3 (SW5)        | Capa 2 (acceso a VLAN 10)                 |
 
 Se verifican con `show etherchannel summary`, donde cada Port-channel debe aparecer en estado `SU` y sus puertos en estado `P`.
 
@@ -137,22 +137,516 @@ Todas las interfaces de capa 3 (Port-channels enrutados y SVIs) pertenecen al á
 - **Un departamento por rama:** simplifica la aplicación de las ACLs.
 - **Mejora en producción:** MS1 y F-BORDER son puntos únicos de falla. En un entorno real se duplicarían.
 
-#### 3.6 **Configuración por dispositivo**
+#### 3.8 **Configuración por dispositivo**
 
-_(Pendiente: un bloque de código por dispositivo.)_
+Resumen de VLANs utilizadas:
 
-- [ ] LACP en Switch1/Switch3 y Switch2/Switch0
-- [ ] VLAN 10 en el switch de servidores
-- [ ] IPs de enlaces y OSPF área 0 en F-CORE y R1 a R5
-- [ ] `ip helper-address` en R3 y R4 hacia el servidor DHCP de AndinaCom
+| VLAN | Nombre           | Dónde se crea | Uso                                   |
+| ---- | ---------------- | ------------- | ------------------------------------- |
+| 10   | SERVIDORES       | MS2, SW5      | Segmento de servidores (10.1.0.24/29) |
+| 20   | ADMINISTRACION   | MS4, SW1, SW2 | Hosts de Administración               |
+| 30   | ATENCION_CLIENTE | MS5, SW3, SW4 | Hosts de Atención al cliente          |
 
-#### 3.7 **Servicios (DNS y HTTP/HTTPS)**
+##### 3.8.1 **F-BORDER (3650)**
 
-_(Pendiente: configuración del servidor y dominio `www.proyecto2_202000806.com`.)_
+```
+enable
+configure terminal
+hostname F-BORDER
 
-#### 3.8 **Verificación**
+! Habilitar enrutamiento en el switch multicapa
+ip routing
 
-_(Pendiente: capturas de `show ip ospf neighbor`, `show etherchannel summary`, ping y acceso HTTP.)_
+! Po1 hacia MS1 (capa 3)
+interface range gi1/0/1 - 2
+ no switchport
+ channel-group 1 mode active
+ no shutdown
+interface port-channel 1
+ ip address 10.1.0.2 255.255.255.252
+ no shutdown
+end
+write memory
+```
+
+##### 3.8.2 **MS1 (core)**
+
+```
+enable
+configure terminal
+hostname MS1
+
+ip routing
+
+! Po1 hacia F-BORDER
+interface range fa0/1 - 2
+ no switchport
+ channel-group 1 mode active
+ no shutdown
+interface port-channel 1
+ ip address 10.1.0.1 255.255.255.252
+ no shutdown
+
+! Po2 hacia MS2
+interface range fa0/3 - 4
+ no switchport
+ channel-group 2 mode active
+ no shutdown
+interface port-channel 2
+ ip address 10.1.0.5 255.255.255.252
+ no shutdown
+
+! Po3 hacia MS3
+interface range fa0/5 - 6
+ no switchport
+ channel-group 3 mode active
+ no shutdown
+interface port-channel 3
+ ip address 10.1.0.9 255.255.255.252
+ no shutdown
+end
+write memory
+```
+
+##### 3.8.3 **MS2 (distribución de Administración y servidores)**
+
+```
+enable
+configure terminal
+hostname MS2
+
+ip routing
+
+! VLAN y SVI del segmento de servidores (gateway de Server0)
+vlan 10
+ name SERVIDORES
+interface vlan 10
+ ip address 10.1.0.25 255.255.255.248
+ no shutdown
+exit
+
+! Po2 hacia MS1
+interface range fa0/1 - 2
+ no switchport
+ channel-group 2 mode active
+ no shutdown
+interface port-channel 2
+ ip address 10.1.0.6 255.255.255.252
+ no shutdown
+
+! Po4 hacia MS4
+interface range fa0/3 - 4
+ no switchport
+ channel-group 4 mode active
+ no shutdown
+interface port-channel 4
+ ip address 10.1.0.13 255.255.255.252
+ no shutdown
+
+! Po6 hacia SW5 (capa 2, acceso a VLAN 10)
+interface range fa0/5 - 6
+ switchport mode access
+ switchport access vlan 10
+ channel-group 6 mode active
+ no shutdown
+interface port-channel 6
+ switchport mode access
+ switchport access vlan 10
+end
+write memory
+```
+
+##### 3.8.4 **MS3 (distribución de Atención al cliente)**
+
+```
+enable
+configure terminal
+hostname MS3
+
+ip routing
+
+! Po3 hacia MS1
+interface range fa0/1 - 2
+ no switchport
+ channel-group 3 mode active
+ no shutdown
+interface port-channel 3
+ ip address 10.1.0.10 255.255.255.252
+ no shutdown
+
+! Po5 hacia MS5
+interface range fa0/3 - 4
+ no switchport
+ channel-group 5 mode active
+ no shutdown
+interface port-channel 5
+ ip address 10.1.0.17 255.255.255.252
+ no shutdown
+end
+write memory
+```
+
+##### 3.8.5 **MS4 (gateway de Administración)**
+
+```
+enable
+configure terminal
+hostname MS4
+
+ip routing
+
+! VLAN y SVI de Administración (gateway de la VLAN 20)
+vlan 20
+ name ADMINISTRACION
+interface vlan 20
+ ip address 172.16.16.1 255.255.255.128
+ no shutdown
+exit
+
+! Po4 hacia MS2
+interface range fa0/1 - 2
+ no switchport
+ channel-group 4 mode active
+ no shutdown
+interface port-channel 4
+ ip address 10.1.0.14 255.255.255.252
+ no shutdown
+exit
+
+! Troncales hacia SW1 (fa0/3) y SW2 (fa0/4)
+interface range fa0/3 - 4
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk allowed vlan 20
+end
+write memory
+```
+
+##### 3.8.6 **MS5 (gateway de Atención al cliente)**
+
+```
+enable
+configure terminal
+hostname MS5
+
+ip routing
+
+! VLAN y SVI de Atención al cliente (gateway de la VLAN 30)
+vlan 30
+ name ATENCION_CLIENTE
+interface vlan 30
+ ip address 172.16.16.129 255.255.255.128
+ no shutdown
+exit
+
+! Po5 hacia MS3
+interface range fa0/1 - 2
+ no switchport
+ channel-group 5 mode active
+ no shutdown
+interface port-channel 5
+ ip address 10.1.0.18 255.255.255.252
+ no shutdown
+exit
+
+! Troncales hacia SW3 (fa0/3) y SW4 (fa0/4)
+interface range fa0/3 - 4
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk allowed vlan 30
+end
+write memory
+```
+
+##### 3.8.7 **SW1 (acceso Administración)**
+
+```
+enable
+configure terminal
+hostname SW1
+
+vlan 20
+ name ADMINISTRACION
+
+! Troncal hacia MS4
+interface fa0/1
+ switchport mode trunk
+ switchport trunk allowed vlan 20
+exit
+
+! Puertos de hosts
+interface range fa0/2 - 3
+ switchport mode access
+ switchport access vlan 20
+ no shutdown
+exit
+end
+write memory
+```
+
+##### 3.8.8 **SW2 (acceso Administración)**
+
+```
+enable
+configure terminal
+hostname SW2
+
+vlan 20
+ name ADMINISTRACION
+
+! Troncal hacia MS4
+interface fa0/1
+ switchport mode trunk
+ switchport trunk allowed vlan 20
+exit
+
+! Puerto de host
+interface fa0/2
+ switchport mode access
+ switchport access vlan 20
+ no shutdown
+exit
+end
+write memory
+```
+
+##### 3.8.9 **SW3 (acceso Atención al cliente)**
+
+```
+enable
+configure terminal
+hostname SW3
+
+vlan 30
+ name ATENCION_CLIENTE
+
+! Troncal hacia MS5
+interface fa0/1
+ switchport mode trunk
+ switchport trunk allowed vlan 30
+exit
+
+! Puerto de host
+interface fa0/2
+ switchport mode access
+ switchport access vlan 30
+ no shutdown
+exit
+end
+write memory
+```
+
+##### 3.8.10 **SW4 (acceso Atención al cliente)**
+
+```
+enable
+configure terminal
+hostname SW4
+
+vlan 30
+ name ATENCION_CLIENTE
+
+! Troncal hacia MS5
+interface fa0/1
+ switchport mode trunk
+ switchport trunk allowed vlan 30
+exit
+
+! Puertos de hosts
+interface range fa0/2 - 3
+ switchport mode access
+ switchport access vlan 30
+ no shutdown
+exit
+end
+write memory
+```
+
+##### 3.8.11 **SW5 (acceso del segmento de servidores)**
+
+```
+enable
+configure terminal
+hostname SW5
+
+vlan 10
+ name SERVIDORES
+
+! Puerto del servidor (Server0)
+interface fa0/1
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
+exit
+
+! Po6 hacia MS2 (LACP)
+interface range fa0/2 - 3
+ switchport mode access
+ switchport access vlan 10
+ channel-group 6 mode active
+ no shutdown
+interface port-channel 6
+ switchport mode access
+ switchport access vlan 10
+end
+write memory
+```
+
+##### 3.8.12 **OSPF (proceso 1, área 0)**
+
+OSPF se configura únicamente en los seis switches multicapa; los switches de acceso (SW1 a SW5) trabajan en capa 2 y no participan. Las redes se declaran con máscara wildcard: `0.0.0.3` para los /30, `0.0.0.7` para el /29 y `0.0.0.127` para los /25.
+
+| Equipo   | Router-ID | Redes anunciadas                        | Interfaz pasiva |
+| -------- | --------- | --------------------------------------- | --------------- |
+| F-BORDER | 6.6.6.6   | 10.1.0.0/30                             | —               |
+| MS1      | 1.1.1.1   | 10.1.0.0/30, 10.1.0.4/30, 10.1.0.8/30   | —               |
+| MS2      | 2.2.2.2   | 10.1.0.4/30, 10.1.0.12/30, 10.1.0.24/29 | VLAN 10         |
+| MS3      | 3.3.3.3   | 10.1.0.8/30, 10.1.0.16/30               | —               |
+| MS4      | 4.4.4.4   | 10.1.0.12/30, 172.16.16.0/25            | VLAN 20         |
+| MS5      | 5.5.5.5   | 10.1.0.16/30, 172.16.16.128/25          | VLAN 30         |
+
+**F-BORDER**
+
+```
+enable
+configure terminal
+router ospf 1
+ router-id 6.6.6.6
+ network 10.1.0.0 0.0.0.3 area 0
+end
+write memory
+```
+
+**MS1**
+
+```
+enable
+configure terminal
+router ospf 1
+ router-id 1.1.1.1
+ network 10.1.0.0 0.0.0.3 area 0
+ network 10.1.0.4 0.0.0.3 area 0
+ network 10.1.0.8 0.0.0.3 area 0
+end
+write memory
+```
+
+**MS2**
+
+```
+enable
+configure terminal
+router ospf 1
+ router-id 2.2.2.2
+ network 10.1.0.4 0.0.0.3 area 0
+ network 10.1.0.12 0.0.0.3 area 0
+ network 10.1.0.24 0.0.0.7 area 0
+ passive-interface vlan 10
+end
+write memory
+```
+
+**MS3**
+
+```
+enable
+configure terminal
+router ospf 1
+ router-id 3.3.3.3
+ network 10.1.0.8 0.0.0.3 area 0
+ network 10.1.0.16 0.0.0.3 area 0
+end
+write memory
+```
+
+**MS4**
+
+```
+enable
+configure terminal
+router ospf 1
+ router-id 4.4.4.4
+ network 10.1.0.12 0.0.0.3 area 0
+ network 172.16.16.0 0.0.0.127 area 0
+ passive-interface vlan 20
+end
+write memory
+```
+
+**MS5**
+
+```
+enable
+configure terminal
+router ospf 1
+ router-id 5.5.5.5
+ network 10.1.0.16 0.0.0.3 area 0
+ network 172.16.16.128 0.0.0.127 area 0
+ passive-interface vlan 30
+end
+write memory
+```
+
+Verificación en cualquier multicapa:
+
+```
+show ip ospf neighbor
+show ip route ospf
+show ip protocols
+```
+
+**Pendiente de configurar:**
+
+- [x] VLANs, puertos y LACP
+- [x] OSPF área 0 en MS1 a MS5 y F-BORDER
+- [ ] `ip helper-address` en las SVIs de MS4 y MS5 hacia el servidor DHCP de AndinaCom
+- [ ] BGP en F-BORDER hacia los otros ISP (y `default-information originate` / `redistribute bgp` en OSPF)
+
+#### 3.9 **Servicios (DNS y HTTP/HTTPS)**
+
+Server0 (10.1.0.26) provee DNS y HTTP/HTTPS a toda la topología. Está en el segmento de servidores (VLAN 10, 10.1.0.24/29), por lo que es alcanzable desde ambos departamentos a través de OSPF y desde los otros ISP mediante la red 10.1.0.0/24 anunciada por BGP.
+
+**Configuración IP (estática):**
+
+| Parámetro      | Valor           |
+| -------------- | --------------- |
+| Dirección IPv4 | 10.1.0.26       |
+| Máscara        | 255.255.255.248 |
+| Gateway        | 10.1.0.25       |
+| Servidor DNS   | 10.1.0.26       |
+
+**Servicio DNS** (Services → DNS, estado On):
+
+| Nombre                      | Tipo     | Dirección |
+| --------------------------- | -------- | --------- |
+| www.proyecto2_202000806.com | A Record | 10.1.0.26 |
+
+**Servicio HTTP/HTTPS** (Services → HTTP): HTTP y HTTPS en estado On, con `index.html` personalizado para identificar el sitio.
+
+**Entrega del DNS a los hosts:** el servidor DHCP de AndinaCom entrega `10.1.0.26` como servidor DNS en los pools de Administración (172.16.16.0/25) y Atención al cliente (172.16.16.128/25), de modo que todos los hosts resuelven el dominio sin configuración manual.
+
+#### 3.10 **Verificación**
+
+Desde un host de cada departamento (Desktop → Command Prompt):
+
+```
+ping 10.1.0.26
+nslookup www.proyecto2_202000806.com
+ping www.proyecto2_202000806.com
+```
+
+Desde el navegador del host (Desktop → Web Browser):
+
+- `http://www.proyecto2_202000806.com`
+- `https://www.proyecto2_202000806.com`
+
+En los switches multicapa:
+
+```
+show ip ospf neighbor
+show ip route ospf
+show etherchannel summary
+```
 
 ---
 
@@ -169,7 +663,7 @@ _(Pendiente: capturas de `show ip ospf neighbor`, `show etherchannel summary`, p
 
 #### 4.2 **Topología**
 
-La red sigue el modelo jerárquico de tres capas: core, distribución y acceso. El switch multicapa A-BORDER (3650-24PS) es la frontera que conecta con los otros ISP mediante BGP. MS6 es el core. MS7 y MS8 son los bloques de distribución, uno por departamento, y cada bloque tiene dos routers 2911 que funcionan como gateway redundante con HSRP. SW7 y SW8 son la capa de acceso, y el servidor DHCP cuelga de R1 a través de SW6.
+La red sigue el modelo jerárquico de tres capas: core, distribución y acceso. El switch multicapa A-BORDER (3650-24PS) es la frontera que conecta con los otros ISP mediante BGP. MS6 es el core. MS7 y MS8 son los bloques de distribución, uno por departamento, y cada bloque tiene dos routers 2911 que funcionan como gateway redundante con HSRP. SW7 y SW8 son la capa de acceso, y el servidor DHCP cuelga del core (MS6) a través de SW6.
 
 - **Ventas:** MS6 → MS7 → R1 y R2 → SW7 → PC9, PC10 y PC11.
 - **Facturación:** MS6 → MS8 → R3 y R4 → SW8 → PC6, PC7 y PC8.
@@ -194,7 +688,7 @@ Total: 8 equipos de capa 3 (4 routers 2911 y 4 switches multicapa), 6 hosts (PC6
 - **Bloque de servicios en el core:** el servidor DHCP cuelga de MS6 a través de SW6, en su propia subred. Así no depende de ningún router de departamento y la falla de R1 a R4 no afecta el servicio DHCP de ninguno de los tres ISP.
 - **Par de routers con HSRP por departamento:** si el router activo falla, el standby toma la IP virtual y los hosts siguen usando el mismo gateway sin reconfigurarse.
 - **LACP en el troncal:** los enlaces entre A-BORDER, MS6, MS7 y MS8 son EtherChannel, por lo que la caída de un cable no interrumpe el servicio.
-- **Segmento de servidores propio:** el servidor DHCP está aislado en su propia subred, detrás de R1, y atiende los pools de todos los ISP.
+- **Segmento de servidores propio:** el servidor DHCP está aislado en su propia subred, detrás de MS6, y atiende los pools de todos los ISP.
 
 #### 4.3 **Subneteo de departamentos (172.16.26.0/24)**
 
@@ -208,6 +702,8 @@ El tamaño de las subredes queda a discreción. Se usan subredes /26 (62 hosts �
 | Libre                 | 172.16.26.136 – .191 | —               | —           | —             |
 | Enlaces punto a punto | 172.16.26.192/27     | 255.255.255.224 | ver 4.4     | 172.16.26.223 |
 | Libre                 | 172.16.26.224 – .255 | —               | —           | —             |
+
+Todo el direccionamiento interno de AndinaCom (departamentos, servidores y enlaces) sale del /24 asignado, que tiene espacio suficiente. No se utiliza direccionamiento de otros ISP (como la red 10.1.0.0/24 de FibraNet GT), de modo que A-BORDER anuncia por BGP un único prefijo, 172.16.26.0/24, que cubre toda la red.
 
 #### 4.4 **Tabla de direccionamiento**
 
@@ -292,17 +788,21 @@ El servidor DHCP de AndinaCom atiende a toda la topología. Los routers que hace
 
 La IP inicial deja fuera las direcciones de los gateways y de los routers HSRP. El DNS apunta al servidor de FibraNet GT. Los pools de MoonLink se agregan con el mismo formato.
 
-#### 4.5 **Configuración por dispositivo**
+#### 4.9 **Configuración por dispositivo**
 
-_(Pendiente.)_
+_(Pendiente: un bloque de código por dispositivo.)_
 
-#### 4.6 **DHCP y HSRP**
+- [ ] LACP, enlaces /30 y OSPF área 0 en A-BORDER, MS6, MS7 y MS8
+- [ ] VLAN 10 y SVI del segmento de servidores en MS6 y SW6
+- [ ] Interfaces, OSPF y HSRP (con `preempt` en R1 y R3) en R1 a R4
+- [ ] VLANs de acceso en SW7 y SW8
+- [ ] `ip helper-address 172.16.26.130` en las interfaces de R1 a R4 hacia los hosts
+- [ ] Pools en el Server DHCP (ver 4.8)
+- [ ] BGP y ruta resumen a Null0 en A-BORDER
 
-_(Pendiente: DHCP centralizado y prueba de conmutación HSRP.)_
+#### 4.10 **Verificación**
 
-#### 4.7 **Verificación**
-
-_(Pendiente.)_
+_(Pendiente: capturas de `show ip ospf neighbor`, `show etherchannel summary`, `show standby brief`, prueba de conmutación HSRP y obtención de IP por DHCP en los hosts de los tres ISP.)_
 
 ---
 
