@@ -30,7 +30,7 @@ Correo: cesarhernandez0019@gmail.com
 
 ### 2. **Topología completa**
 
-![imagen](/Proyecto2/img/topologia1.png)
+![imagen](/Proyecto_2/img/topologia1.png)
 
 | ISP         | Topología            | Protocolo interno | Departamentos                       | Servicios / extras |
 | ----------- | -------------------- | ----------------- | ----------------------------------- | ------------------ |
@@ -62,7 +62,7 @@ La raíz del árbol es el switch multicapa MS1 (3560-24PS), que actúa como core
   - MS2 → MS4 → SW1 y SW2 → PC3, PC5 y PC2 (Administración).
 - **Rama de Atención al cliente:** MS1 → MS3 → MS5 → SW3 y SW4 → PC0, PC4 y PC1.
 
-![imagen](/Proyecto2/img/topologia3.png)
+![imagen](/Proyecto_2/img/topologia3.png)
 
 | Dispositivo                   | Modelo    | Función                                                                                          |
 | ----------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
@@ -677,7 +677,7 @@ La red sigue el modelo jerárquico de tres capas: core, distribución y acceso. 
 - **Facturación:** MS6 → MS8 → R3 y R4 → SW8 → PC6, PC7 y PC8.
 - **Servicios:** MS6 → SW6 → Server DHCP.
 
-![imagen](/Proyecto2/img/topologia4.png)
+![imagen](/Proyecto_2/img/topologia4.png)
 
 | Capa          | Equipos                               | Modelo                | Función                                                                                                                    |
 | ------------- | ------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -1249,7 +1249,7 @@ La red usa una topología hub-and-spoke con **dos hubs redundantes** (MS9 y MS10
 - **Soporte:** MS9 y MS10 → MS11 → SW9 → PC12, PC13 y R5 (WRT300N) con Laptop0 por WiFi.
 - **Seguridad:** MS9 y MS10 → MS12 → SW10 → PC14, PC15 y PC16.
 
-![imagen](/Proyecto2/img/topologia5.png)
+![imagen](/Proyecto_2/img/topologia5.png)
 
 | Dispositivo | Modelo    | Función                                                          |
 | ----------- | --------- | ---------------------------------------------------------------- |
@@ -1720,7 +1720,7 @@ Prueba de redundancia de hubs: con un ping continuo (`ping -t`) desde PC12 hacia
 
 Los tres ISPs (FibraNet GT, AndinaCom y MoonLink) se interconectan mediante BGP entre sus switches multicapa de borde (Cisco 3650-24PS), usando fibra óptica. Los tres equipos forman un triángulo, de modo que cada ISP tiene un vecino BGP directo con los otros dos. Si un enlace cae, el tráfico entre esos dos ISP converge por el tercero.
 
-![imagen](/Proyecto2/img/topologia2.png)
+![imagen](/Proyecto_2/img/topologia2.png)
 
 #### 6.2 **Subneteo de la red de interconexión**
 
