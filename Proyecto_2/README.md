@@ -2256,7 +2256,6 @@ show standby brief              ! en R1 a R4: un Active y un Standby por grupo
 
 Tras cada prueba, `show access-lists` debe mostrar que el contador sube en la línea `permit` correspondiente para el tráfico permitido y en las líneas `deny` para el bloqueado.
 
-_(Agregar capturas de los pings permitidos y bloqueados de cada pareja, del acceso HTTP/HTTPS y de `show access-lists` con contadores.)_
 
 ---
 
@@ -2280,115 +2279,263 @@ _(Agregar capturas de los pings permitidos y bloqueados de cada pareja, del acce
 | 14  | Falla de un cable en un EtherChannel | Cualquier host               | `ping -t` y `shutdown` de un puerto de un Port-channel    | El ping continúa sin interrupción               |
 | 15  | ACLs                                 | Un host por departamento     | Pings de la matriz de 7.3                                 | Solo Seguridad llega a los demás departamentos  |
 
-_(Agregar capturas de cada prueba.)_
 
 ---
 
-### 9. **Análisis en modo simulación (Packet Tracer)**
+## 9. Análisis de tráfico con Wireshark
 
-Se utiliza el **modo Simulation** de Packet Tracer (botón en la esquina inferior derecha). En _Edit Filters_ se activa solo el protocolo a analizar, se envía el tráfico de prueba y se avanza con _Capture / Forward_. Al hacer clic en un paquete de la lista de eventos se abre su detalle por capas (_OSI Model_ e _Inbound/Outbound PDU Details_).
+### 9.1 Objetivo
 
-| Protocolo   | Cómo se genera                                     | Qué se observa                                                                                                                                                                                      | Capa OSI             |
-| ----------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| DHCP (DORA) | En un host: IP Configuration → Static y luego DHCP | **Discover** (broadcast, UDP 68 → 67, origen 0.0.0.0), reenvío unicast del gateway al servidor 172.16.26.130 gracias al `ip helper-address`, **Offer**, **Request** y **ACK** con IP, gateway y DNS | Aplicación (UDP)     |
-| DNS         | `nslookup` o navegador al dominio                  | Consulta tipo A a 10.1.0.26 por UDP 53 y respuesta con la IP 10.1.0.26                                                                                                                              | Aplicación (UDP)     |
-| HTTP        | Navegador a `http://www.proyecto2_202000806.com`   | Handshake TCP de tres pasos (SYN, SYN-ACK, ACK) al puerto 80, `GET`, respuesta 200 y cierre de la conexión                                                                                          | Aplicación (TCP)     |
-| HTTPS       | Navegador a `https://www.proyecto2_202000806.com`  | Mismo handshake TCP, pero al puerto 443 y con el contenido cifrado                                                                                                                                  | Aplicación (TCP)     |
-| OSPF        | Encender o reiniciar una interfaz de un multicapa  | Hello hacia 224.0.0.5, intercambio de DBD, LSR, LSU y LSAck hasta llegar a `FULL`                                                                                                                   | Red (protocolo 89)   |
-| EIGRP       | Encender o reiniciar una interfaz en MS9 o MS10    | Hello hacia 224.0.0.10, Update con las rutas y ACK de los vecinos                                                                                                                                   | Red (protocolo 88)   |
-| BGP         | Reiniciar la sesión: `clear ip bgp *` en un borde  | Conexión TCP al puerto 179, mensajes **Open**, **Keepalive** y **Update** con los prefijos anunciados                                                                                               | Aplicación (TCP 179) |
-| HSRP        | Observar los eventos en R1 a R4                    | Hello cada 3 s hacia 224.0.0.2 (UDP 1985) con la IP virtual y la prioridad                                                                                                                          | Aplicación (UDP)     |
+Capturar y analizar tráfico de red generado de forma controlada mediante Wireshark, identificando los protocolos utilizados, sus campos principales y el proceso de comunicación entre un equipo cliente y los servidores de destino.
 
-_(Agregar capturas de la lista de eventos y del detalle por capas de cada protocolo, con una breve explicación de cada una.)_
+Para realizar las pruebas se utilizó una máquina virtual con Ubuntu y Wireshark 4.6.4, capturando tráfico en la interfaz de red `enp0s1`. Se generaron solicitudes HTTP, HTTPS y DNS desde la terminal, además de una conexión TCP y una prueba de conectividad mediante ICMP.
 
----
+El análisis se realizó considerando las capas de la comunicación de red y los campos visibles en los paquetes capturados.
 
-### 10. **Análisis de tráfico con Wireshark**
+### 9.2 Encapsulación de los paquetes
 
-Se capturan y analizan al menos cuatro protocolos, explicando cada uno **capa por capa**. Todos los paquetes comparten esta encapsulación:
+Los paquetes capturados pueden analizarse mediante las siguientes capas:
 
-| Capa              | Contenido relevante                                                                      |
-| ----------------- | ---------------------------------------------------------------------------------------- |
-| Enlace (Ethernet) | MAC de origen y destino, EtherType `0x0800` (IPv4)                                       |
-| Red (IPv4)        | IP de origen y destino, TTL, campo _Protocol_: 1 = ICMP, 6 = TCP, 17 = UDP               |
-| Transporte        | Puertos de origen y destino; en TCP también número de secuencia, ACK, banderas y ventana |
-| Aplicación        | Mensaje del protocolo (DNS, HTTP, TLS, etc.)                                             |
+| Capa | Información observada |
+|---|---|
+| Enlace de datos | Direcciones MAC de origen y destino, y tipo de protocolo encapsulado en Ethernet. |
+| Red | Direcciones IPv4 de origen y destino, TTL y campo Protocol. |
+| Transporte | Puertos de origen y destino para TCP y UDP. En TCP también se analizan banderas, números de secuencia y confirmaciones. |
+| Aplicación | Mensajes DNS, solicitudes HTTP, registros TLS y mensajes ICMP cuando corresponda al protocolo analizado. |
 
-**10.1 TCP: handshake de tres pasos** (filtro: `tcp.flags.syn == 1` y `tcp.port == 80`)
+En IPv4, el campo Protocol identifica TCP con el valor 6, UDP con el valor 17 e ICMP con el valor 1. En las capturas Ethernet sobre IPv4, el campo EtherType normalmente corresponde a `0x0800`.
 
-| Paso | Banderas | Dirección          | Qué observar                                                |
-| ---- | -------- | ------------------ | ----------------------------------------------------------- |
-| 1    | SYN      | Cliente → Servidor | Número de secuencia inicial (ISN) y opciones (MSS, ventana) |
-| 2    | SYN, ACK | Servidor → Cliente | Su propio ISN y ACK = ISN del cliente + 1                   |
-| 3    | ACK      | Cliente → Servidor | ACK = ISN del servidor + 1; la conexión queda establecida   |
+No todos los protocolos utilizan todas estas capas de la misma manera. Por ejemplo, ICMP se encapsula directamente en IPv4, sin utilizar puertos TCP o UDP.
 
-**10.2 DNS** (filtro: `dns`)
+### 9.3 Escenario 1: TCP — handshake de tres pasos
 
-- **Transporte:** UDP, puerto de destino 53.
-- **Consulta:** _Transaction ID_, bandera QR = 0, nombre `www.proyecto2_202000806.com` y tipo A.
-- **Respuesta:** mismo _Transaction ID_, QR = 1 y registro A con la dirección 10.1.0.26 y su TTL.
+**Objetivo:** observar cómo se establece una conexión TCP entre un cliente y un servidor mediante los mensajes SYN, SYN-ACK y ACK.
 
-**10.3 HTTP frente a HTTPS** (filtros: `http` y `tls`)
+#### Procedimiento
 
-| Aspecto          | HTTP (puerto 80)                                  | HTTPS (puerto 443)                                                                       |
-| ---------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Contenido        | Texto plano: se leen `GET /`, cabeceras y el HTML | Cifrado: solo se ven los registros TLS, no el contenido                                  |
-| Establecimiento  | Tras el handshake TCP se envía la petición        | Tras el handshake TCP, _ClientHello_, _ServerHello_, certificado e intercambio de claves |
-| Confidencialidad | Cualquiera en el camino puede leer el tráfico     | Solo los extremos pueden leerlo (_Application Data_ cifrada)                             |
+Desde la terminal de Ubuntu se ejecutó el siguiente comando:
 
-**10.4 ICMP** (filtro: `icmp`)
-
-- **Echo Request:** tipo 8, código 0, con _Identifier_, _Sequence number_ y datos.
-- **Echo Reply:** tipo 0, mismo _Identifier_ y _Sequence number_.
-- **TTL:** se observa en la cabecera IPv4 y su valor depende del sistema operativo del origen.
-- **Bloqueo por ACL:** los pings denegados no producen respuesta (o devuelven _Destination unreachable_, tipo 3, según el equipo).
-
-_(Indicar cómo se obtuvo cada captura, agregar las capturas con los campos señalados y una explicación breve debajo de cada una.)_
-
----
-
-### 11. **Anexos**
-
-#### 11.1 **Configuraciones completas por dispositivo**
-
-Las configuraciones están en las secciones 3.8 (FibraNet GT), 4.9 (AndinaCom), 5.9 (MoonLink), 6.5 (BGP de los tres equipos de borde) y 7.2 (ACLs). Además se incluyen como archivos de texto en la carpeta `configs/` del repositorio, uno por dispositivo.
-
-#### 11.2 **Estructura del repositorio**
-
-```
-Proyecto2/
-├── README.md
-├── img/
-│   ├── topologia2.png      (interconexión de ISPs)
-│   ├── topologia3.png      (FibraNet GT)
-│   ├── topologia4.png      (AndinaCom)
-│   ├── topologia5.png      (MoonLink)
-│   └── capturas/
-├── configs/
-│   ├── fibranet/           (F-BORDER, MS1 a MS5, SW1 a SW5)
-│   ├── andinacom/          (A-BORDER, MS6 a MS8, R1 a R4, SW6 a SW8)
-│   └── moonlink/           (M-BORDER, MS9 a MS12, SW11, SW13)
-├── packettracer/
-│   └── proyecto2.pkt
-└── wireshark/
-    └── capturas.pcap
+```bash
+curl -v --http1.1 http://example.com/ -o /dev/null
 ```
 
-#### 11.3 **Costos estimados (opcional)**
+Este comando realizó una solicitud HTTP utilizando TCP. La opción `-v` permitió observar detalles de la conexión y `-o /dev/null` descartó el contenido descargado.
 
-Inventario total de equipos de la solución. El precio unitario se completa con la cotización que se use como referencia.
+La conexión utilizada para el análisis fue entre el cliente `192.168.64.12` y el servidor `172.66.147.243`, utilizando el puerto TCP 80 del servidor.
 
-| Equipo                     | Cantidad | Detalle                                  | Precio unitario | Subtotal |
-| -------------------------- | -------- | ---------------------------------------- | --------------- | -------- |
-| Switch multicapa 3560-24PS | 12       | MS1 a MS12                               |                 |          |
-| Switch multicapa 3650-24PS | 3        | F-BORDER, A-BORDER, M-BORDER             |                 |          |
-| Switch 2960-24TT           | 10       | SW1 a SW8, SW11 y SW13                   |                 |          |
-| Router 2911                | 4        | R1 a R4 (AndinaCom)                      |                 |          |
-| Router inalámbrico WRT300N | 1        | R5 (MoonLink)                            |                 |          |
-| Servidor                   | 2        | Server0 (DNS y HTTP/HTTPS) y Server DHCP |                 |          |
-| PC                         | 17       | PC0 a PC16                               |                 |          |
-| Laptop                     | 1        | Laptop0 (WiFi)                           |                 |          |
-| Cableado y fibra           | —        | Cobre entre equipos y fibra entre ISPs   |                 |          |
-| **Total**                  |          |                                          |                 |          |
+En Wireshark se aplicaron los siguientes filtros:
+
+```text
+ip.addr == 172.66.147.243 && tcp.port == 80 && tcp.flags.syn == 1
+```
+
+Este filtro permitió identificar los paquetes que tienen activada la bandera SYN. Para observar los paquetes de toda la conexión se utilizó:
+
+```text
+ip.addr == 172.66.147.243 && tcp.port == 80
+```
+
+#### Resultados obtenidos
+
+| Paso | Banderas TCP | Número de secuencia raw | Interpretación |
+|---|---|---:|---|
+| 1 | SYN | 2138411191 | El cliente inicia la conexión TCP. |
+| 2 | SYN, ACK | 3773646405 | El servidor responde y confirma la solicitud del cliente. |
+| 3 | ACK | 2138411192 | El cliente confirma la respuesta del servidor y completa el establecimiento de la conexión. |
+
+Los valores corresponden a los números de secuencia raw observados en Wireshark. En este caso, el número de secuencia del ACK del cliente es igual al número de secuencia inicial del cliente más uno, lo cual es consistente con el establecimiento de la conexión TCP.
+
+Para comprobar también la confirmación del servidor, se debe revisar el campo Acknowledgment Number del paquete SYN-ACK y verificar que corresponda al número de secuencia inicial del cliente más uno.
+
+#### Análisis por capas
+
+- **Enlace de datos:** se observan las direcciones MAC de origen y destino de los paquetes Ethernet.
+- **Red:** se identifican las direcciones IPv4 `192.168.64.12` y `172.66.147.243`.
+- **Transporte:** se observa TCP, el puerto de destino 80 y las banderas SYN, ACK y SYN-ACK, junto con los números de secuencia y confirmación.
+- **Aplicación:** una vez establecida la conexión TCP, se transmite la solicitud HTTP hacia `example.com`.
+
+**Conclusión:** el handshake de tres pasos permite establecer una conexión TCP confiable antes de transmitir los datos de la aplicación.
+
+### 9.4 Escenario 2: DNS
+
+**Objetivo:** analizar una consulta DNS y su respuesta, identificando el nombre consultado, el tipo de registro, el TTL y los puertos utilizados.
+
+#### Procedimiento
+
+Desde la terminal de Ubuntu se ejecutó:
+
+```bash
+dig @8.8.8.8 example.com A
+```
+
+Este comando solicitó al servidor DNS `8.8.8.8` los registros de tipo A correspondientes al dominio `example.com`.
+
+En Wireshark se utilizó el filtro:
+
+```text
+dns && ip.addr == 8.8.8.8
+```
+
+Se identificaron los mensajes de consulta DNS enviados desde Ubuntu hacia el servidor y la respuesta recibida desde `8.8.8.8`.
+
+#### Resultados obtenidos
+
+| Campo | Valor observado |
+|---|---|
+| Dominio consultado | `example.com` |
+| Servidor DNS | `8.8.8.8` |
+| Tipo de registro | A |
+| Protocolo de transporte | UDP |
+| Puerto del servidor DNS | 53 |
+| TTL de los registros A | 300 segundos |
+| Cantidad de respuestas A | 2 |
+
+Las direcciones IPv4 devueltas por la consulta fueron:
+
+- `104.20.23.154`
+- `172.66.147.243`
+
+El TTL de 300 segundos indica el tiempo, expresado en segundos, durante el cual el registro puede permanecer almacenado en caché antes de que deba considerarse vencido para efectos de caché DNS.
+
+El puerto UDP 53 corresponde al servidor DNS. El puerto de destino de la respuesta es un puerto temporal del cliente, por lo que no necesariamente será el mismo en ejecuciones distintas.
+
+#### Análisis por capas
+
+- **Enlace de datos:** los mensajes se transmiten mediante tramas Ethernet entre la interfaz de Ubuntu y su siguiente salto de red.
+- **Red:** la consulta se dirige a `8.8.8.8`, mientras que la respuesta proviene de esa dirección.
+- **Transporte:** se utiliza UDP, con el puerto 53 del servidor DNS y un puerto temporal del cliente.
+- **Aplicación:** DNS contiene el nombre `example.com`, el tipo de consulta A y, en la respuesta, los registros con sus direcciones IPv4 y TTL.
+
+**Conclusión:** DNS permite traducir nombres de dominio a direcciones IP. En esta prueba, la consulta fue respondida con dos registros A, ambos con un TTL de 300 segundos.
+
+### 9.5 Escenario 3: comparación entre HTTP y HTTPS
+
+**Objetivo:** comparar una comunicación HTTP sin cifrado de transporte con una comunicación HTTPS protegida mediante TLS, identificando la información legible y los registros cifrados.
+
+#### Procedimiento
+
+Primero se generó tráfico HTTP mediante:
+
+```bash
+curl --http1.1 -v http://neverssl.com/ -o /dev/null
+```
+
+Después se generó tráfico HTTPS mediante:
+
+```bash
+curl -v https://example.com/ -o /dev/null
+```
+
+Para revisar las solicitudes HTTP se utilizó el filtro:
+
+```text
+http
+```
+
+Para identificar los mensajes de TLS se utilizó:
+
+```text
+tls
+```
+
+También se revisaron todos los paquetes de la conexión HTTPS con el siguiente filtro:
+
+```text
+ip.addr == 104.20.23.154 && tcp.port == 443
+```
+
+#### A. Tráfico HTTP
+
+La solicitud HTTP se realizó hacia `neverssl.com`, cuya dirección IPv4 observada fue `34.223.124.45`. En la conexión se identificó el puerto TCP 80 del servidor.
+
+La respuesta del servidor fue `HTTP/1.1 200 OK`.
+
+En este tipo de comunicación, Wireshark puede mostrar información de la capa de aplicación en texto legible, como la solicitud `GET /`, encabezados HTTP y partes del contenido HTML.
+
+#### B. Tráfico HTTPS y handshake TLS
+
+La conexión HTTPS se realizó entre el cliente `192.168.64.12` y el servidor `104.20.23.154`, utilizando el puerto TCP 443.
+
+En Wireshark se identificaron mensajes del protocolo TLS, incluyendo el `Client Hello`. La ejecución de `curl` confirmó el uso de TLS 1.3.
+
+Durante el handshake TLS, el cliente y el servidor negocian los parámetros necesarios para establecer una comunicación segura. Una vez establecido el contexto criptográfico, los datos de la aplicación se transmiten cifrados.
+
+#### Evidencia de datos cifrados
+
+En el Frame 223 se observó la siguiente información:
+
+| Campo | Valor |
+|---|---|
+| Dirección IP de origen | `104.20.23.154` |
+| Dirección IP de destino | `192.168.64.12` |
+| Puerto TCP de origen | 443 |
+| Puerto TCP de destino | 48196 |
+| Protocolo | TLS 1.3 |
+| Tipo de registro | Application Data |
+| Contenido | Encrypted Application Data |
+
+El paquete contiene registros `TLSv1.3 Record Layer: Application Data` y bytes identificados como `Encrypted Application Data`. Esto constituye evidencia de que el contenido de la aplicación está cifrado en la comunicación observada.
+
+#### Comparación HTTP y HTTPS
+
+| Aspecto | HTTP | HTTPS |
+|---|---|---|
+| Puerto habitual | TCP 80 | TCP 443 |
+| Establecimiento | Handshake TCP | Handshake TCP y negociación TLS |
+| Solicitud de aplicación | Puede observarse en texto legible | Está protegida por TLS después del establecimiento de la comunicación segura |
+| Contenido transmitido | Encabezados y contenido potencialmente legibles | Datos de aplicación cifrados |
+| Protección de confidencialidad | No proporciona cifrado por sí mismo | TLS protege la confidencialidad de los datos transmitidos |
+
+#### Análisis por capas
+
+- **Enlace de datos:** los paquetes viajan en tramas Ethernet con direcciones MAC de origen y destino.
+- **Red:** se observan las direcciones IPv4 del cliente y del servidor.
+- **Transporte:** ambas conexiones utilizan TCP; HTTP utiliza el puerto 80 y HTTPS el puerto 443.
+- **Aplicación y seguridad:** HTTP permite observar solicitudes y respuestas en texto legible. HTTPS incorpora TLS para proteger los datos de aplicación. En la captura HTTPS se observó el handshake TLS y posteriormente un registro `Application Data` con contenido cifrado.
+
+**Conclusión:** la captura demuestra la diferencia entre HTTP y HTTPS. Mientras que en HTTP es posible observar el contenido de las solicitudes y respuestas, en HTTPS los datos de aplicación están protegidos mediante TLS y no pueden interpretarse directamente a partir de la carga útil cifrada.
+
+### 9.6 Escenario 4: ICMP — solicitud y respuesta Echo
+
+**Objetivo:** comprobar la comunicación con un destino de red y analizar los mensajes ICMP Echo Request y Echo Reply.
+
+#### Procedimiento
+
+Desde la terminal de Ubuntu se ejecutó:
+
+```bash
+ping -c 4 8.8.8.8
+```
+
+Este comando envía cuatro solicitudes de eco ICMP al servidor `8.8.8.8` y muestra las respuestas recibidas, si las hay.
+
+En Wireshark se utilizó el filtro:
+
+```text
+icmp
+```
+
+Para completar el análisis se deben identificar los mensajes `Echo (ping) request` y `Echo (ping) reply`, si el destino responde.
+
+#### Campos que se deben observar
+
+| Campo | Echo Request | Echo Reply |
+|---|---|---|
+| Tipo ICMP | 8 | 0 |
+| Código | 0 | 0 |
+| Dirección de origen | Cliente | Destino consultado |
+| Dirección de destino | Destino consultado | Cliente |
+| Identifier | Identificador de la solicitud | Debe coincidir con el de la solicitud correspondiente |
+| Sequence Number | Número de secuencia de la solicitud | Debe coincidir con el de la respuesta correspondiente |
+
+#### Análisis por capas
+
+- **Enlace de datos:** se observan las direcciones MAC de las tramas Ethernet.
+- **Red:** se identifican las direcciones IPv4 del equipo de origen y del destino, así como el TTL de los paquetes.
+- **Transporte:** ICMP no utiliza puertos TCP ni UDP; se encapsula directamente en IPv4.
+- **Aplicación:** se observan los mensajes Echo Request y Echo Reply, que permiten verificar si el destino responde a las solicitudes de eco.
+
+**Conclusión:** ICMP se utiliza para diagnóstico y comprobación de conectividad. Si se reciben respuestas Echo Reply que coinciden con las solicitudes enviadas, se confirma que hubo respuesta ICMP del destino. Si no hay respuestas, esto no demuestra por sí solo que el destino esté fuera de servicio, ya que ICMP puede estar filtrado por la red o por el propio destino.
+
 
 ---
